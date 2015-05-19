@@ -13,5 +13,4 @@ Shortcode:
 
 Template Tag:
 
-`<?php wds_related_posts( $title='Related Posts' $number='4' ); ?>`
-
+`<?php wds_related_posts(); ?>`
