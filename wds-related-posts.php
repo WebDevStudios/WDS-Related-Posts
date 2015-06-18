@@ -353,12 +353,3 @@ function wds_related_posts( $post_id = 0, $args = array() ) {
 	$query = WDS_Related_Posts::get_related_posts( $args['flush'], $post_id, $args['number'], $args );
 	echo WDS_Related_Posts::do_related_posts( $query );
 }
-
-function wds_test() {
-	global $post;
-	$args = array(
-		'taxonomy' => 'category'
-	);
-	wds_related_posts( $post->ID, $args );
-}
-add_action( 'wp_footer', 'wds_test' );
