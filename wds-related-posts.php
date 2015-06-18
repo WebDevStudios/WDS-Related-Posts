@@ -216,35 +216,47 @@ if ( ! class_exists( 'WDS_Related_Posts' ) ) {
 			// Start the widget string
 			$widget = '';
 
-			// Set up our counter
-			$i = 0;
+			$template = locate_template( 'wds-related-posts-template.php' );
 
-			if ( $related_query->have_posts() ) :
+			if ( ! $template ) {
 
-				$widget .= '<ul class="related-posts-list">';
+				// Set up our counter
+				$i = 0;
 
-				while ( $related_query->have_posts() ) : $related_query->the_post();
+				if ( $related_query->have_posts() ) :
 
-				++$i;
-				$even_odd_class = ( ($i % 2) == 0 ) ? 'even' : 'odd';
+					$widget .= '<ul class="related-posts-list">';
 
-					$widget .=	'<li class="item related related-' . $i . ' related-' . $even_odd_class . '">';
-					$widget .=		'<span class="posted-on"><time class="entry-date published updated" datetime="' . esc_attr( get_the_date( 'c' ) ) . '"></time>' . esc_html( get_the_date() ). '</span>';
-					$widget .=		'<h4 class="entry-title"><a href="' . get_the_permalink() . '">' . get_the_title() . '</a></h4>';
-					$widget .=		'<a class="more" href="' . get_the_permalink() . '">' . __( 'Read More', 'text-domain' ) . ' </a>';
-					$widget .=	'</li>';
+					while ( $related_query->have_posts() ) : $related_query->the_post();
 
-				endwhile;
+						++ $i;
+						$even_odd_class = ( ( $i % 2 ) == 0 ) ? 'even' : 'odd';
 
-				$widget .= '</ul>';
+						$widget .= '<li class="item related related-' . $i . ' related-' . $even_odd_class . '">';
+						$widget .= '<span class="posted-on"><time class="entry-date published updated" datetime="' . esc_attr( get_the_date( 'c' ) ) . '"></time>' . esc_html( get_the_date() ) . '</span>';
+						$widget .= '<h4 class="entry-title"><a href="' . get_the_permalink() . '">' . get_the_title() . '</a></h4>';
+						$widget .= '<a class="more" href="' . get_the_permalink() . '">' . __( 'Read More', 'text-domain' ) . ' </a>';
+						$widget .= '</li>';
+
+					endwhile;
+
+					$widget .= '</ul>';
 
 				else :
 
-				$widget .= __( 'Sorry, I couldn\'t find any related posts.', 'text-domain' );
+					$widget .= __( 'Sorry, I couldn\'t find any related posts.', 'text-domain' );
 
 				endif;
 
-			wp_reset_postdata();
+				wp_reset_postdata();
+
+			} else {
+
+				ob_start();
+				require $template;
+				$widget .= ob_get_clean();
+
+			}
 
 			return $widget;
 
@@ -258,7 +270,19 @@ if ( ! class_exists( 'WDS_Related_Posts' ) ) {
 		 * @param  int      $post_ID  The post ID.
 		 * @return obj      $related  The post object.
 		 */
-		public static function get_related_posts( $flush = false, $post_ID, $number ) {
+		public static function get_related_posts( $flush = false, $post_ID, $number, $args = array() ) {
+
+			$defaults = array(
+				'taxonomy' => 'category',
+				'exclude'  => array(),
+				'order'    => 'ASC',
+				'orderby'  => 'rand',
+			);
+			$args = wp_parse_args( $args, $defaults );
+
+			// Be sure the passed post ID is excluded
+			$exclude = array( $post_ID );
+			$args['exclude'] = array_merge( $exclude, $args['exclude'] );
 
 			// Leave a backdoor for flushing transient
 			$flush = isset( $_GET['delete-cache'] ) ? true : $flush;
@@ -272,16 +296,25 @@ if ( ! class_exists( 'WDS_Related_Posts' ) ) {
 			// If we're flushing or there isn't a transient, generate one
 			if ( $flush || false === ( $related ) ) {
 
-				$cats = wp_get_post_categories( $post_ID );
-
-				$related = new WP_Query( array(
-					'category__in'           => reset( $cats ),
-					'post__not_in'           => array( absint( $post_ID ) ),
+				$q_args = array(
+					'post__not_in'           => $args['exclude'],
 					'posts_per_page'         => absint( $number ),
+					'order'                  => $args['order'],
+					'orderby'                => $args['orderby'],
 					'no_found_rows'          => true,
 					'update_post_meta_cache' => false,
 					'update_post_term_cache' => false,
-				) );
+				);
+
+				if ( 'tag' == $args['taxonomy'] ) {
+					$tags = wp_get_post_tags( $post_ID, array( 'fields' => 'ids' ) );
+					$q_args['tag__in'] = $tags;
+				} else {
+					$cats = wp_get_post_categories( $post_ID, array( 'fields' => 'ids' ) );
+					$q_args['category__in'] = $cats;
+				}
+
+				$related = new WP_Query( $q_args );
 
 				// Set transient, and expire after a max of 4 hours
 				wp_cache_set( $cache_key, $related, 4 * HOUR_IN_SECONDS );
@@ -303,6 +336,29 @@ add_action( 'widgets_init', 'register_wds_related_posts_widget' );
 /**
  * Template tag.
  */
-function wds_related_posts() {
-	do_shortcode( 'wds_related_posts' );
+function wds_related_posts( $post_id = 0, $args = array() ) {
+	if ( ! $post_id ) {
+		global $post;
+		$post_id = $post->ID;
+	}
+	$defaults = array(
+		'exclude' => array( $post_id ),
+		'number'  => 5,
+		'flush'   => false,
+		'order'    => 'ASC',
+		'orderby'  => 'rand',
+		'taxonomy' => 'category',
+	);
+	$args = wp_parse_args( $args,$defaults );
+	$query = WDS_Related_Posts::get_related_posts( $args['flush'], $post_id, $args['number'], $args );
+	echo WDS_Related_Posts::do_related_posts( $query );
 }
+
+function wds_test() {
+	global $post;
+	$args = array(
+		'taxonomy' => 'category'
+	);
+	wds_related_posts( $post->ID, $args );
+}
+add_action( 'wp_footer', 'wds_test' );
