@@ -216,35 +216,47 @@ if ( ! class_exists( 'WDS_Related_Posts' ) ) {
 			// Start the widget string
 			$widget = '';
 
-			// Set up our counter
-			$i = 0;
+			$template = locate_template( 'wds-related-posts-template.php' );
 
-			if ( $related_query->have_posts() ) :
+			if ( ! $template ) {
 
-				$widget .= '<ul class="related-posts-list">';
+				// Set up our counter
+				$i = 0;
 
-				while ( $related_query->have_posts() ) : $related_query->the_post();
+				if ( $related_query->have_posts() ) :
 
-				++$i;
-				$even_odd_class = ( ($i % 2) == 0 ) ? 'even' : 'odd';
+					$widget .= '<ul class="related-posts-list">';
 
-					$widget .=	'<li class="item related related-' . $i . ' related-' . $even_odd_class . '">';
-					$widget .=		'<span class="posted-on"><time class="entry-date published updated" datetime="' . esc_attr( get_the_date( 'c' ) ) . '"></time>' . esc_html( get_the_date() ). '</span>';
-					$widget .=		'<h4 class="entry-title"><a href="' . get_the_permalink() . '">' . get_the_title() . '</a></h4>';
-					$widget .=		'<a class="more" href="' . get_the_permalink() . '">' . __( 'Read More', 'text-domain' ) . ' </a>';
-					$widget .=	'</li>';
+					while ( $related_query->have_posts() ) : $related_query->the_post();
 
-				endwhile;
+						++ $i;
+						$even_odd_class = ( ( $i % 2 ) == 0 ) ? 'even' : 'odd';
 
-				$widget .= '</ul>';
+						$widget .= '<li class="item related related-' . $i . ' related-' . $even_odd_class . '">';
+						$widget .= '<span class="posted-on"><time class="entry-date published updated" datetime="' . esc_attr( get_the_date( 'c' ) ) . '"></time>' . esc_html( get_the_date() ) . '</span>';
+						$widget .= '<h4 class="entry-title"><a href="' . get_the_permalink() . '">' . get_the_title() . '</a></h4>';
+						$widget .= '<a class="more" href="' . get_the_permalink() . '">' . __( 'Read More', 'text-domain' ) . ' </a>';
+						$widget .= '</li>';
+
+					endwhile;
+
+					$widget .= '</ul>';
 
 				else :
 
-				$widget .= __( 'Sorry, I couldn\'t find any related posts.', 'text-domain' );
+					$widget .= __( 'Sorry, I couldn\'t find any related posts.', 'text-domain' );
 
 				endif;
 
-			wp_reset_postdata();
+				wp_reset_postdata();
+
+			} else {
+
+				ob_start();
+				require $template;
+				$widget .= ob_get_clean();
+
+			}
 
 			return $widget;
 
